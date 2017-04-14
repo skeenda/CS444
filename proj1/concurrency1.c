@@ -6,13 +6,15 @@ struct Data {
   int value;
   int waitTime;
 };
-struct Data dataList[32];
 
+struct Data dataList[32];
 pthread_mutex_t myMutex;
+int bufferNumber = 0; // Global variable
 
 /*
   TODO
     - Implement rdrand option for random number gen
+    - change Sleep
 */
 
 
@@ -23,7 +25,7 @@ void *producerJob(void *id){
   int dataSleepTime = -1;
   struct Data data;
 
-  while(idx < 100){
+  while(1){
     printf("Thread %d doing work ", id);
     producerSleepTime = genrand_int32() % 5 + 3;
     randNumber = genrand_int32() % 50 + 1 ; // 1 - 50
@@ -31,11 +33,21 @@ void *producerJob(void *id){
 
     printf("This is the sleep time %d \n", producerSleepTime);
     sleep(producerSleepTime);
+    data.value = randNumber;
+    data.waitTime = dataSleepTime;
+
+    while (bufferNumber >= 32)
+      sleep(0.2);
+
+    pthread_mutex_lock(&myMutex);
+    dataList[idx] = data;
+    pthread_mutex_unlock(&myMutex);
 
 
     printf("Rand number generated %d \n", randNumber);
     printf("data generated sleep time %d \n \n", dataSleepTime);
     idx++;
+    printf("%d",idx);
   }
   pthread_exit(NULL);
 }
@@ -52,12 +64,9 @@ void initMutex(){
 
 int main(){
   initMutex();
-  pthread_t thread[5];
+  pthread_t producer;
   int i = 0;
-  for (i = 0; i < 5; i++){
-    int returnVal =0;
-    returnVal= pthread_create(&thread[i], NULL, &producerJob, (void *)i);
-  }
+  pthread_create(&producer, NULL, &producerJob,NULL);
   printf("I'm here!\n");
 
   pthread_exit(NULL);
