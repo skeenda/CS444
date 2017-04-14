@@ -14,7 +14,7 @@ int bufferNumber = 0; // Global variable
 /*
   TODO
     - Implement rdrand option for random number gen
-    - change Sleep
+    - change sleep to a mutex condition
 */
 
 
@@ -27,7 +27,7 @@ void *producerJob(void *id){
 
   while(1){
     printf("Thread %d doing work ", id);
-    producerSleepTime = genrand_int32() % 5 + 3;
+    producerSleepTime = genrand_int32() % 5 + 3; // 3-7
     randNumber = genrand_int32() % 50 + 1 ; // 1 - 50
     dataSleepTime = genrand_int32() % 9 + 2; // between 2-9
 
@@ -41,13 +41,11 @@ void *producerJob(void *id){
 
     pthread_mutex_lock(&myMutex);
     dataList[idx] = data;
+    printf("Producer has produced random # %d, and the cost for the number was %d, sleeping for %d seconds \n",randNumber, dataSleepTime, producerSleepTime);
+    bufferNumber += 1;
     pthread_mutex_unlock(&myMutex);
-
-
-    printf("Rand number generated %d \n", randNumber);
-    printf("data generated sleep time %d \n \n", dataSleepTime);
     idx++;
-    printf("%d",idx);
+    printf("On index %d \n",idx);
   }
   pthread_exit(NULL);
 }
