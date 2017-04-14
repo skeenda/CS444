@@ -19,34 +19,28 @@ int bufferNumber = 0; // Global variable
 
 
 void *producerJob(void *id){
-  int idx = 0;
   int producerSleepTime = 0;
-  int randNumber = -1;
-  int dataSleepTime = -1;
   struct Data data;
 
   while(1){
     printf("Thread %d doing work ", id);
     producerSleepTime = genrand_int32() % 5 + 3; // 3-7
-    randNumber = genrand_int32() % 50 + 1 ; // 1 - 50
-    dataSleepTime = genrand_int32() % 9 + 2; // between 2-9
-
-    printf("This is the sleep time %d \n", producerSleepTime);
-    sleep(producerSleepTime);
-    data.value = randNumber;
-    data.waitTime = dataSleepTime;
+    data.value = genrand_int32() % 50 + 1 ; // 1 - 50
+    data.waitTime = genrand_int32() % 9 + 2; // between 2-9
 
     while (bufferNumber >= 32)
       sleep(0.2);
+    sleep(producerSleepTime); // put outside of mutex so it doesn't hang system
 
     pthread_mutex_lock(&myMutex);
-    dataList[idx] = data;
-    printf("Producer has produced random # %d, and the cost for the number was %d, sleeping for %d seconds \n",randNumber, dataSleepTime, producerSleepTime);
+    dataList[bufferNumber] = data;
+    printf("Producer has produced random # %d, and the cost for the number was %d, sleeping for %d seconds \n",data.value, data.waitTime, producerSleepTime);
     bufferNumber += 1;
     pthread_mutex_unlock(&myMutex);
-    idx++;
-    printf("On index %d \n",idx);
+
+    printf("On index %d \n",bufferNumber);
   }
+
   pthread_exit(NULL);
 }
 
@@ -67,7 +61,6 @@ int main(){
   pthread_create(&producer, NULL, &producerJob,NULL);
   printf("I'm here!\n");
 
-  pthread_exit(NULL);
 
   pthread_mutex_destroy(&myMutex);
   return 0;
