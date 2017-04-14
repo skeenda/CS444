@@ -9,12 +9,12 @@ struct Data {
 
 struct Data dataList[32];
 pthread_mutex_t myMutex;
+pthread_cond_t condition;
 int bufferNumber = 0; // Global variable
 
 /*
   TODO
     - Implement rdrand option for random number gen
-    - change sleep to a mutex condition
 */
 
 
@@ -36,6 +36,7 @@ void *producerJob(void *id){
     dataList[bufferNumber] = data;
     printf("Producer has produced random # %d, and the cost for the number was %d, sleeping for %d seconds \n",data.value, data.waitTime, producerSleepTime);
     bufferNumber += 1;
+    pthread_cond_signal(&condition);
     pthread_mutex_unlock(&myMutex);
 
     printf("On index %d \n",bufferNumber);
@@ -44,11 +45,16 @@ void *producerJob(void *id){
   pthread_exit(NULL);
 }
 
+
+
 void initMutex(){
   int mutexReturnVal = 100;
+  int condVal = 100;
+  condVal = pthread_cond_init(&condition, 0);
   mutexReturnVal = pthread_mutex_init(&myMutex, NULL);
-  if (mutexReturnVal != 0){
-    printf("Mutex could not be initialized, exiting..");
+
+  if (mutexReturnVal != 0 || condVal != 0){
+    printf("Error in pthread initization, exiting..");
     exit(1);
   }
 }
@@ -59,9 +65,12 @@ int main(){
   pthread_t producer;
   int i = 0;
   pthread_create(&producer, NULL, &producerJob,NULL);
+
   printf("I'm here!\n");
 
+  pthread_join(producer,NULL);
 
   pthread_mutex_destroy(&myMutex);
+  pthread_cond_destroy(&condition);
   return 0;
 }
