@@ -6,13 +6,13 @@
 
 struct Data {
     int value;
-    int waitTime;
+    int wait;
 };
 
-struct Data dataList[32];
-pthread_mutex_t myMutex;
+struct Data data_lst[32];
+pthread_mutex_t mtx;
 pthread_cond_t condition;
-int bufferNumber = 0; // Global variable
+int buf_no = 0; // Global variable
 int rand_chk;
 
 unsigned int use_rdrand()
@@ -57,32 +57,40 @@ unsigned int get_rand()
         return genrand_int32();
 }
 
+struct Data make_data()
+{
+    struct Data data;
+    data.value = get_rand() % 50 + 1 ; // 1 - 50
+    data.wait = get_rand() % 9 + 2; // between 2-9
+    return data;
+}
+
 void *producerJob(void *id)
 {
-    int producerSleepTime = 0;
+    int pst = 0;
     struct Data data;
 
     while(1){
         printf("Thread %d doing work \n", id);
-        producerSleepTime = get_rand() % 5 + 3; // 3-7
-        data.value = get_rand() % 50 + 1 ; // 1 - 50
-        data.waitTime = get_rand() % 9 + 2; // between 2-9
+        pst = get_rand() % 5 + 3; // 3-7
+        data = make_data();
 
-        while (bufferNumber >= 32)
+        while (buf_no >= 32)
             sleep(0.2);
 
-        sleep(producerSleepTime); // put outside of mutex so it doesn't hang system
+        sleep(pst); // put outside of mutex so it doesn't hang system
 
-        pthread_mutex_lock(&myMutex);
-        dataList[bufferNumber] = data;
-        printf("Producer has produced random # %d, and the cost for the number was %d, sleeping for %d seconds \n",data.value, data.waitTime, producerSleepTime);
-        bufferNumber++;
+        pthread_mutex_lock(&mtx);
+        data_lst[buf_no++] = data;
+        printf("Producer has produced random # %d, 
+                and the cost for the number was %d, 
+                sleeping for %d seconds \n",data.value, data.wait, pst);
         pthread_cond_signal(&condition);
-        pthread_mutex_unlock(&myMutex);
+        pthread_mutex_unlock(&mtx);
 
-        printf("On index %d \n",bufferNumber-1);
+        printf("On index %d \n",buf_no-1);
         //NB: slightly changed this
-        // bufferNumber is number of items in buffer,
+        // buf_no is number of items in buffer,
         // not index
         // well I guess its technically the index 
         // of where the NEXT item WILL be placed
@@ -96,31 +104,31 @@ void *consumerJob(void *id)
     struct Data data;
     while(1){
         printf("Consumer Thread %d doing work \n", (int)id);
-        while(bufferNumber <= 0){
-            //printf("COnsumer thinks bufferNumber is %d\n",bufferNumber);
+        while(buf_no <= 0){
+            //printf("COnsumer thinks buf_no is %d\n",buf_no);
         }
-        pthread_mutex_lock(&myMutex);
-        data = dataList[--bufferNumber];
-        //bufferNumber--;
+        pthread_mutex_lock(&mtx);
+        data = data_lst[--buf_no];
+        //buf_no--;
         printf("Consumer %d found item w/ value %d \
                 \n Now sleep for %d\n", (int)id, 
                 data.value,
-                data.waitTime);
+                data.wait);
         pthread_cond_signal(&condition);
-        pthread_mutex_unlock(&myMutex);
+        pthread_mutex_unlock(&mtx);
 
-        sleep(data.waitTime);
+        sleep(data.wait);
     }
     pthread_exit(NULL);
 }
 
-void initMutex(){
-    int mutexReturnVal = 100;
-    int condVal = 100;
-    condVal = pthread_cond_init(&condition, 0);
-    mutexReturnVal = pthread_mutex_init(&myMutex, NULL);
+void init_mutex(){
+    int mrv = 100;//Mutex Return Value
+    int cv = 100;//Conditional calue
+    cv = pthread_cond_init(&condition, 0);
+    mrv = pthread_mutex_init(&mtx, NULL);
 
-    if (mutexReturnVal != 0 || condVal != 0){
+    if (mrv != 0 || cv != 0){
         printf("Error in pthread initization, exiting..");
         exit(1);
     }
@@ -128,7 +136,7 @@ void initMutex(){
 
 
 int main(){
-    initMutex();
+    init_mutex();
     pthread_t producer, consumer;
     int i=0;
     rand_chk = check_for_rdrand();
@@ -140,7 +148,7 @@ int main(){
     pthread_join(producer,NULL);
     pthread_join(consumer,NULL);
 
-    pthread_mutex_destroy(&myMutex);
+    pthread_mutex_destroy(&mtx);
     pthread_cond_destroy(&condition);
-  return 0;
+    return 0;
 }
