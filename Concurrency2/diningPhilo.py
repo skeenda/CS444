@@ -43,7 +43,7 @@ def get_forks(num, leftFork, rightFork, test, test2):
         return
 
 
-def put_forks(num):
+def put_forks(num, leftFork, rightFork):
     rightFork['available'].release()
     leftFork['available'].release()
 
@@ -61,7 +61,7 @@ def philosopher(num, idx):
         print("\n")
         think(num)
         get_forks(num, leftFork, rightFork, test, test2)
-        put_forks(num)
+        put_forks(num, leftFork, rightFork)
 
 
 def buildForks():
