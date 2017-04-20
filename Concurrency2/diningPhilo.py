@@ -1,19 +1,16 @@
 import multiprocessing as mt
 import random
 import time
+'''
+Authors: Brandon Dring, William Buffman, Samuel Jacobs
 
+Script to solve dining philosophers problem
+'''
 forks, jobs, philosophers = [], [], [
     "Plato", "Aristotle", "Karl Marx", "Confuscious", "Socrates"]
 
 philopid = {"Plato": "-1", "Aristotle": "-2",
             "Karl Marx": "-3", "Confuscious": "-4", "Socrates": "-5"}
-
-"""
-    I switched the bool inside the forks to a mutex. That way everyone can access
-    the pile of forks, but only grab the specific for if available. It'll prevent
-    less of a chance of deadlock so people aren't waiting on the pool of forks,
-    rather than the specific fork
-"""
 
 
 def think(num):
@@ -49,13 +46,11 @@ def get_forks(num, leftFork, rightFork, test, test2):
 def put_forks(num):
     rightFork['available'].release()
     leftFork['available'].release()
-    pass
-    # return forks and mark them as available in forks dictionary
 
 
 def philosopher(num, idx):
     leftFork, rightFork = forks[idx], forks[(idx + 1) % 5]
-    if leftFork['id'] > rightFork['id']:
+    if leftFork['id'] > rightFork['id']:  # Swap forks for last philosopher to prevent deadlock
         rightFork, leftFork = leftFork, rightFork
 
     print(num + " can use ", leftFork, rightFork)
