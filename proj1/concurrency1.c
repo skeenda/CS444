@@ -71,7 +71,7 @@ void *producerJob(void *id)
     struct Data data;
 
     while(1){
-        printf("Thread %d doing work \n", id);
+        //printf("Thread %d doing work \n", (int)id);
         pst = get_rand() % 5 + 3; // 3-7
         data = make_data();
 
@@ -82,9 +82,14 @@ void *producerJob(void *id)
 
         pthread_mutex_lock(&mtx);
         data_lst[buf_no++] = data;
-        printf("Producer has produced random # %d, 
-                and the cost for the number was %d, 
-                sleeping for %d seconds \n",data.value, data.wait, pst);
+
+        printf("Producer with id: %d, has produced random # %d, \
+				and the cost for the number was %d, sleeping for \
+				%d seconds \n", (int)id, 
+				data.value, 
+				data.wait, 
+				pst);
+
         pthread_cond_signal(&condition);
         pthread_mutex_unlock(&mtx);
 
@@ -103,17 +108,18 @@ void *consumerJob(void *id)
 {
     struct Data data;
     while(1){
-        printf("Consumer Thread %d doing work \n", (int)id);
+        //printf("Consumer Thread %d doing work \n", (int)id);
         while(buf_no <= 0){
             //printf("COnsumer thinks buf_no is %d\n",buf_no);
         }
         pthread_mutex_lock(&mtx);
         data = data_lst[--buf_no];
         //buf_no--;
-        printf("Consumer %d found item w/ value %d \
+        printf("Consumer with id: %d, found item w/ value %d \
                 \n Now sleep for %d\n", (int)id, 
                 data.value,
                 data.wait);
+
         pthread_cond_signal(&condition);
         pthread_mutex_unlock(&mtx);
 
@@ -135,18 +141,45 @@ void init_mutex(){
 }
 
 
-int main(){
+int main(int argc, char** argv){
     init_mutex();
-    pthread_t producer, consumer;
-    int i=0;
+    pthread_t *producer,*consumer;
+
+    int i = 0; //thread ids
+	int thread_count = 0;
+
+	if(argc != 2 || atoi(argv[1]) <= 0){
+		printf("Usage: %s <Int>\n", argv[0]);
+		return 1;
+	}
+
+	thread_count = atoi(argv[1]);
+	printf("Creating %d producer and %d consumer threads\n", thread_count, thread_count);
+
+	producer = malloc(sizeof(pthread_t) * thread_count);
+	consumer = malloc(sizeof(pthread_t) * thread_count);
+
     rand_chk = check_for_rdrand();
-    pthread_create(&producer, NULL, &producerJob,(void*)i++);
-    pthread_create(&consumer, NULL, &consumerJob,(void*)i);
 
-    printf("I'm here!\n");
+	for(i = 0; i < thread_count*2; i += 2){
+		pthread_create(&producer[i], NULL, &producerJob, (void *)i);
+		pthread_create(&consumer[i], NULL, &consumerJob, (void *)i+1);
 
-    pthread_join(producer,NULL);
-    pthread_join(consumer,NULL);
+		printf("I'm here!\n");
+
+	}
+	
+	for(i = 0; i < thread_count*2; i += 2){
+		pthread_join(producer[i], NULL);
+		pthread_join(consumer[i], NULL);
+	}
+    //pthread_create(&producer[0], NULL, &producerJob,(void*)i++);
+    //pthread_create(&consumer[0], NULL, &consumerJob,(void*)i);
+
+    /*printf("I'm here!\n");
+
+    pthread_join(producer[0],NULL);
+    pthread_join(consumer[0],NULL);*/
 
     pthread_mutex_destroy(&mtx);
     pthread_cond_destroy(&condition);
