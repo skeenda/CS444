@@ -34,7 +34,7 @@ int check_for_rdrand()
     unsigned int edx;
 
     char vendor[13];
-    
+
     eax = 0x01;
 
     __asm__ __volatile__(
@@ -42,7 +42,7 @@ int check_for_rdrand()
                          : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
                          : "a"(eax)
                          );
-    
+
     if(ecx & 0x40000000)
         return 1;
     else
@@ -71,33 +71,34 @@ void *producerJob(void *id)
     struct Data data;
 
     while(1){
-        //printf("Thread %d doing work \n", (int)id);
         pst = get_rand() % 5 + 3; // 3-7
         data = make_data();
 
-        while (buf_no >= 32)
-            sleep(0.2);
+        while (buf_no >= 32){
+            printf("BUFF NUM SIZE!!! %d \n \n \n", buf_no);
+            sleep(1);
+        }
 
         sleep(pst); // put outside of mutex so it doesn't hang system
 
         pthread_mutex_lock(&mtx);
         data_lst[buf_no++] = data;
 
-        printf("Producer with id: %d, has produced random # %d, \
+        printf("PRODUCER with id: %d, has produced random # %d, \
 				and the cost for the number was %d, sleeping for \
-				%d seconds \n", (int)id, 
-				data.value, 
-				data.wait, 
+				%d seconds \n", (int)id,
+				data.value,
+				data.wait,
 				pst);
 
         pthread_cond_signal(&condition);
         pthread_mutex_unlock(&mtx);
 
-        printf("On index %d \n",buf_no-1);
+        printf("PRODUCER with id: %d pushed data on index %d \n \n", (int) id,buf_no-1);
         //NB: slightly changed this
         // buf_no is number of items in buffer,
         // not index
-        // well I guess its technically the index 
+        // well I guess its technically the index
         // of where the NEXT item WILL be placed
     }
 
@@ -108,17 +109,16 @@ void *consumerJob(void *id)
 {
     struct Data data;
     while(1){
-        //printf("Consumer Thread %d doing work \n", (int)id);
-        while(buf_no <= 0){
-            //printf("COnsumer thinks buf_no is %d\n",buf_no);
-        }
+        while(buf_no <= 0)
+            sleep(1);
+
         pthread_mutex_lock(&mtx);
         data = data_lst[--buf_no];
-        //buf_no--;
-        printf("Consumer with id: %d, found item w/ value %d \
-                \n Now sleep for %d\n", (int)id, 
+        printf("CONSUMER with id: %d, found item w/ value %d \
+                \n Now sleep for %d\n", (int)id,
                 data.value,
                 data.wait);
+        printf("CONSUMER with id: %d pulled from index %d\n \n",(int) id, buf_no);
 
         pthread_cond_signal(&condition);
         pthread_mutex_unlock(&mtx);
@@ -150,6 +150,7 @@ int main(int argc, char** argv){
 
 	if(argc != 2 || atoi(argv[1]) <= 0){
 		printf("Usage: %s <Int>\n", argv[0]);
+    printf("Please use a CLI number to give # of threads to use \n");
 		return 1;
 	}
 
@@ -163,23 +164,13 @@ int main(int argc, char** argv){
 
 	for(i = 0; i < thread_count*2; i += 2){
 		pthread_create(&producer[i], NULL, &producerJob, (void *)i);
-		pthread_create(&consumer[i], NULL, &consumerJob, (void *)i+1);
-
-		printf("I'm here!\n");
-
+		//pthread_create(&consumer[i], NULL, &consumerJob, (void *)i+1);
 	}
-	
+
 	for(i = 0; i < thread_count*2; i += 2){
 		pthread_join(producer[i], NULL);
-		pthread_join(consumer[i], NULL);
+		//pthread_join(consumer[i], NULL);
 	}
-    //pthread_create(&producer[0], NULL, &producerJob,(void*)i++);
-    //pthread_create(&consumer[0], NULL, &consumerJob,(void*)i);
-
-    /*printf("I'm here!\n");
-
-    pthread_join(producer[0],NULL);
-    pthread_join(consumer[0],NULL);*/
 
     pthread_mutex_destroy(&mtx);
     pthread_cond_destroy(&condition);
