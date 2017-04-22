@@ -15,8 +15,7 @@ pthread_cond_t condition;
 int buf_no = 0; // Global variable
 int rand_chk;
 
-unsigned int use_rdrand()
-{
+unsigned int use_rdrand() {
     unsigned int to_return=0;
     __asm__ __volatile__(
                          "rdrand %0;"
@@ -25,9 +24,7 @@ unsigned int use_rdrand()
     return to_return;
 }
 
-int check_for_rdrand()
-{
-
+int check_for_rdrand() {
     unsigned int eax;
     unsigned int ebx;
     unsigned int ecx;
@@ -49,24 +46,21 @@ int check_for_rdrand()
         return 0;
 }
 
-unsigned int get_rand()
-{
+unsigned int get_rand() {
     if(rand_chk)
         return use_rdrand();
     else
         return genrand_int32();
 }
 
-struct Data make_data()
-{
+struct Data make_data() {
     struct Data data;
     data.value = get_rand() % 50 + 1 ; // 1 - 50
     data.wait = get_rand() % 9 + 2; // between 2-9
     return data;
 }
 
-void *producerJob(void *id)
-{
+void *producerJob(void *id) {
     int pst = 0;
     struct Data data;
 
@@ -74,32 +68,24 @@ void *producerJob(void *id)
         pst = get_rand() % 5 + 3; // 3-7
         data = make_data();
 
-        while (buf_no >= 32){
-            printf("BUFF NUM SIZE!!! %d \n \n \n", buf_no);
-            sleep(1);
-        }
+        if (buf_no <= 32){
+          pthread_mutex_lock(&mtx);
+          data_lst[buf_no++] = data;
 
-        sleep(pst); // put outside of mutex so it doesn't hang system
+          printf("PRODUCER with id: %d, has produced random # %d, \
+                  and the cost for the number was %d, sleeping for \
+                  %d seconds \n", (int)id,
+        				  data.value,
+        				  data.wait,
+        				  pst);
+          pthread_cond_signal(&condition);
+          pthread_mutex_unlock(&mtx);
 
-        pthread_mutex_lock(&mtx);
-        data_lst[buf_no++] = data;
-
-        printf("PRODUCER with id: %d, has produced random # %d, \
-        and the cost for the number was %d, sleeping for \
-                %d seconds \n", (int)id,
-				data.value,
-				data.wait,
-				pst);
-
-        pthread_cond_signal(&condition);
-        pthread_mutex_unlock(&mtx);
-
-        printf("PRODUCER with id: %d pushed data on index %d \n \n", (int) id,buf_no-1);
-        //NB: slightly changed this
-        // buf_no is number of items in buffer,
-        // not index
-        // well I guess its technically the index
-        // of where the NEXT item WILL be placed
+          printf("PRODUCER with id: %d pushed data on index %d \n \n", (int) id,buf_no-1);
+      }else{
+        printf("Oh nose! Buffer full! \n \n");
+      }
+      sleep(pst); // put outside of mutex so it doesn't hang system
     }
 
     pthread_exit(NULL);
@@ -109,20 +95,20 @@ void *consumerJob(void *id)
 {
     struct Data data;
     while(1){
-        while(buf_no <= 0)
-            sleep(1);
-
-        pthread_mutex_lock(&mtx);
-        data = data_lst[--buf_no];
-        printf("CONSUMER with id: %d, found item w/ value %d \
-                \n Now sleep for %d\n", (int)id,
-                data.value,
-                data.wait);
-        printf("CONSUMER with id: %d pulled from index %d\n \n",(int) id, buf_no);
-
-        pthread_cond_signal(&condition);
-        pthread_mutex_unlock(&mtx);
-
+        if (buf_no >= 1){
+          pthread_mutex_lock(&mtx);
+          data = data_lst[--buf_no];
+          printf("CONSUMER with id: %d, found item w/ value %d \
+                  \n Now sleep for %d\n", (int)id,
+                  data.value,
+                  data.wait);
+          printf("CONSUMER with id: %d pulled from index %d\n \n",(int) id, buf_no);
+          pthread_cond_signal(&condition);
+          pthread_mutex_unlock(&mtx);
+      }else{
+        printf("Oh nose!! Buffer empty!! \n \n");
+        sleep(1);
+      }
         sleep(data.wait);
     }
     pthread_exit(NULL);
@@ -142,37 +128,37 @@ void init_mutex(){
 
 
 int main(int argc, char** argv){
-    init_mutex();
-    pthread_t *producer,*consumer;
+     init_mutex();
+     pthread_t *producer,*consumer;
 
-    int i = 0; //thread ids
-	int thread_count = 0;
+     int i = 0; //thread ids
+	   int thread_count = 0;
 
-	if(argc != 2 || atoi(argv[1]) <= 0){
-		printf("Usage: %s <Int>\n", argv[0]);
-    printf("Please use a CLI number to give # of threads to use \n");
-		return 1;
-	}
+	   if(argc != 2 || atoi(argv[1]) <= 0){
+		    printf("Usage: %s <Int>\n", argv[0]);
+        printf("Please use a CLI number to give # of threads to use \n");
+		    return 1;
+	   }
 
-	thread_count = atoi(argv[1]);
-	printf("Creating %d producer and %d consumer threads\n", thread_count, thread_count);
+	   thread_count = atoi(argv[1]);
+	   printf("Creating %d producer and %d consumer threads\n", thread_count, thread_count);
 
-	producer = malloc(sizeof(pthread_t) * thread_count);
-	consumer = malloc(sizeof(pthread_t) * thread_count);
+	   producer = malloc(sizeof(pthread_t) * thread_count);
+	   consumer = malloc(sizeof(pthread_t) * thread_count);
 
-    rand_chk = check_for_rdrand();
+     rand_chk = check_for_rdrand();
 
-	for(i = 0; i < thread_count*2; i += 2){
-		pthread_create(&producer[i], NULL, &producerJob, (void *)i);
-		pthread_create(&consumer[i], NULL, &consumerJob, (void *)i+1);
-	}
+	   for(i = 0; i < thread_count*2; i += 2){
+		     pthread_create(&producer[i], NULL, &producerJob, (void *)i);
+		     pthread_create(&consumer[i], NULL, &consumerJob, (void *)i+1);
+      }
 
-	for(i = 0; i < thread_count*2; i += 2){
-		pthread_join(producer[i], NULL);
-		pthread_join(consumer[i], NULL);
-	}
+	    for(i = 0; i < thread_count*2; i += 2){
+		      pthread_join(producer[i], NULL);
+		      pthread_join(consumer[i], NULL);
+	    }
 
-    pthread_mutex_destroy(&mtx);
-    pthread_cond_destroy(&condition);
-    return 0;
+      pthread_mutex_destroy(&mtx);
+      pthread_cond_destroy(&condition);
+      return 0;
 }
