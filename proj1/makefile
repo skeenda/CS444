@@ -29,16 +29,16 @@ $(PDF): %.pdf: %.ps
 	ps2pdf $<
 
 homework1: homework1.o
-	$(CC) homework1.c -o homework1 -pthread -lpthread -std=c99
+	$(CC) homework1.c -o homework1 -pthread -lpthread
 
 homework1.o:
-	$(CC) -c  homework1.c $(CFLAGS) 
+	$(CC) -c  homework1.c
 
 
 all: pdf
-	 gcc -o hw1 homework1.c -lpthread
+
 
 clean:
-	rm -f *.pdf *.ps *.dvi *.out *.log *.aux *.bbl *.blg *.pyg *.o homework1
+	rm -f *.pdf *.ps *.dvi *.out *.log *.aux *.bbl *.blg *.pyg *.o
 
-.PHONY: all show clean ps pdf showps
+.PHONY: all show clean ps pdf showps homework1
