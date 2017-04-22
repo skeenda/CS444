@@ -85,8 +85,8 @@ void *producerJob(void *id)
         data_lst[buf_no++] = data;
 
         printf("PRODUCER with id: %d, has produced random # %d, \
-				and the cost for the number was %d, sleeping for \
-				%d seconds \n", (int)id,
+        and the cost for the number was %d, sleeping for \
+                %d seconds \n", (int)id,
 				data.value,
 				data.wait,
 				pst);
@@ -164,12 +164,12 @@ int main(int argc, char** argv){
 
 	for(i = 0; i < thread_count*2; i += 2){
 		pthread_create(&producer[i], NULL, &producerJob, (void *)i);
-		//pthread_create(&consumer[i], NULL, &consumerJob, (void *)i+1);
+		pthread_create(&consumer[i], NULL, &consumerJob, (void *)i+1);
 	}
 
 	for(i = 0; i < thread_count*2; i += 2){
 		pthread_join(producer[i], NULL);
-		//pthread_join(consumer[i], NULL);
+		pthread_join(consumer[i], NULL);
 	}
 
     pthread_mutex_destroy(&mtx);
