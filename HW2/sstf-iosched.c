@@ -13,9 +13,14 @@
 #include <linux/slab.h>
 #include <linux/init.h>
 
+/* Edited to track head position
+ */
 struct sstf_data {
         struct list_head queue;
-        
+	/* Needs to keep track of current head position
+	 * To know not to backwards for new requests
+	 */
+	sector_t head_pos;        
 };
 
 static void sstf_merged_requests(struct request_queue *q, struct request *rq,
@@ -24,17 +29,20 @@ static void sstf_merged_requests(struct request_queue *q, struct request *rq,
         list_del_init(&next->queuelist);
 }
 
+/* Edited to update head position on dispatch */
 static int sstf_dispatch(struct request_queue *q, int force)
 {
         struct sstf_data *nd = q->elevator->elevator_data;
-
+ 
         if (!list_empty(&nd->queue)) {
                 struct request *rq;
                 rq = list_entry(nd->queue.next, struct request, queuelist);
             	printk(KERN_ALERT "Dispatching request w/ sector no.: %lu\n",
                         rq_end_sector(rq));
                 list_del_init(&rq->queuelist);
-                elv_dispatch_sort(q, rq);
+		/* update head position */
+		nd->head_pos = rq_end_sector(rq);
+                elv_Gdispatch_sort(q, rq);
                 return 1;
         }
         return 0;
@@ -53,40 +61,46 @@ static void sstf_add_request(struct request_queue *q, struct request *rq)
         //sector_t cur; 
         printk(KERN_ALERT "Adding request w/ sector no.: %lu\n",
                         blk_rq_pos(rq));
-        if (!list_empty(&nd -> queue)){
-                struct list_head *iter;
-                struct request *tmp;
-                /*Iterate thru each element already in request queue*/
-                list_for_each(iter, &nd->queue){
-                tmp = list_entry(iter, struct request, queuelist);
-                printk("Here is a req % lu \n", rq_end_sector(tmp));
-                /* Check if new request fits in below request form iterator */
-                if(rq_end_sector(rq) < rq_end_sector(tmp)){
-                        /* If it fits there, use add tail to add it below
-                         * the request to which the iterator points
-                         */
-                        //list_add_tail(&rq->queuelist, iter);
-                        /* And now thats its inserted, it is done
-                         */
-                        break;
-                        }
-              
-                }
-		/*
-		 * Moved insertion outside iteration
-		 * This way, if the new request is found to be greater than
-		 * any pre-existing requests in the request queue, the new
-		 * request will be placed at the (circular) "end" of the 
-		 * request queue.  Otherwise the break statement arrives here.
-		 */
-		list_add_tail(&rq->queuelist, iter);
-        }else{
-                /* if the list is empty, new request will
-                 * become the first entry
-                 */
-                list_add_tail(&rq->queuelist, &nd->queue);
-        }
-
+        struct list_head *iter = NULL;
+        struct request *tmp = NULL;
+        /*Iterate thru each element already in request queue*/
+        list_for_each(iter, &nd->queue){
+        	tmp = list_entry(iter, struct request, queuelist);
+        	printk("Here is a req % lu \n", rq_end_sector(tmp));
+		/* Insertion Sort 1 */
+		if((blk_rq_pos(rq) > nd->head_pos)
+		&& ((blk_rq_pos(rq) < blk_rq_pos(tmp))
+		|| (blk_rq_pos(tmp) < nd->head_pos))){
+			/* Found position for request
+			 * Will be inserted on the head's current journey up
+			 * and before a bigger request
+			 * or if the end of the upward journey is reached
+			 *, simply between the head position
+			 * and the first request on the head's next journey up
+			 */
+			break;
+		}
+		/* Insertion Sort 2 */
+		if((blk_rq_pos(tmp) < nd->head_pos)
+		&& (blk_rq_pos(tmp) > blk_rq_pos(rq))){
+			/* Assume list is already correctly sorted
+			 * therefore "backend" of list is requests prepped
+			 * for next upward journey
+			 * Will therefore place new request in sorted order on
+			 * backend
+			 */
+			break;
+		}
+	}
+	/* At this point iteration was either broken because position for 
+	 * insertion was found or exhausted (including empty or singular
+	 * list case) 
+	 * That means its time to insert the new request!
+	 */
+	list_add_tail(&rq->queuelist, iter);
+	/* Note, even iteration quit before it began
+	 * iter stil got assigned at least the sentinel of queue
+	 */
 }
 /* -----------------Change me ----------------------------------- */
 
@@ -112,7 +126,8 @@ sstf_latter_request(struct request_queue *q, struct request *rq)
                 return NULL;
         return list_entry(rq->queuelist.next, struct request, queuelist);
 }
-
+/* Edited to initialize head position variable
+ */
 static int sstf_init_queue(struct request_queue *q, struct elevator_type *e)
 {
         struct sstf_data *nd;
@@ -127,6 +142,10 @@ static int sstf_init_queue(struct request_queue *q, struct elevator_type *e)
                 kobject_put(&eq->kobj);
                 return -ENOMEM;
         }
+	/* Added head position variable
+	 * starts @ 0
+	 */
+	nd->head_pos = 0;
         eq->elevator_data = nd;
 
         INIT_LIST_HEAD(&nd->queue);
