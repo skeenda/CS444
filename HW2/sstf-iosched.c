@@ -48,11 +48,20 @@ static int sstf_dispatch(struct request_queue *q, int force)
         return 0;
 }
 
-
-
-
-
-
+static void __print_request_queue(request_queue *q)
+{
+	struct sstf_data *nd = q->elevator->elevator_data;
+        struct list_head *iter = NULL;
+        struct request *tmp = NULL;
+        /*Iterate thru each element already in request queue*/
+	printk(KERN_ALERT "Printing Request Queue\nHead pos is %lu\n",
+		nd->head_pos);
+        list_for_each(iter, &nd->queue){
+        	tmp = list_entry(iter, struct request, queuelist);
+        	printk(KERN_ALERT "\tRequest w/ Section %lu \n"
+				, blk_rq_pos(tmp));
+	}
+}
 
 /* -----------------NEED TO CHANGE THIS------------------------------- */
 static void sstf_add_request(struct request_queue *q, struct request *rq)
@@ -66,7 +75,7 @@ static void sstf_add_request(struct request_queue *q, struct request *rq)
         /*Iterate thru each element already in request queue*/
         list_for_each(iter, &nd->queue){
         	tmp = list_entry(iter, struct request, queuelist);
-        	printk("Here is a req % lu \n", rq_end_sector(tmp));
+//        	printk("Here is a req % lu \n", rq_end_sector(tmp));
 		/* Insertion Sort 1 */
 		if((blk_rq_pos(rq) > nd->head_pos)
 		&& ((blk_rq_pos(rq) < blk_rq_pos(tmp))
@@ -101,6 +110,7 @@ static void sstf_add_request(struct request_queue *q, struct request *rq)
 	/* Note, even iteration quit before it began
 	 * iter stil got assigned at least the sentinel of queue
 	 */
+	__print_request_queue(q);
 }
 /* -----------------Change me ----------------------------------- */
 
