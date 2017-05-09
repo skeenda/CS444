@@ -12,16 +12,25 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/init.h>
-
 /* Edited to track head position
  */
 struct sstf_data {
-        struct list_head queue;
-	/* Needs to keep track of current head position
-	 * To know not to backwards for new requests
-	 */
-	sector_t head_pos;        
+    struct list_head queue;
+    /* Needs to keep track of current head position
+     * To know not to backwards for new requests
+     */
+    sector_t head_pos;        
 };
+
+static struct request *
+sstf_latter_request(struct request_queue *q, struct request *rq)
+{
+        struct sstf_data *nd = q->elevator->elevator_data;
+
+        if (rq->queuelist.next == &nd->queue)
+                return NULL;
+        return list_entry(rq->queuelist.next, struct request, queuelist);
+}
 
 static void sstf_merged_requests(struct request_queue *q, struct request *rq,
                                  struct request *next)
@@ -32,16 +41,25 @@ static void sstf_merged_requests(struct request_queue *q, struct request *rq,
 /* Edited to update head position on dispatch */
 static int sstf_dispatch(struct request_queue *q, int force)
 {
-        struct sstf_data *nd = q->elevator->elevator_data;
- 
+    struct sstf_data *nd = q->elevator->elevator_data;
+    //FILE *fp; 
+    //time_t rawtime; 
+    //struct tm * timeinfo; 
+    //time(&rawtime);
+    //timeinfo = localtime(&rawtime);
         if (!list_empty(&nd->queue)) {
-                struct request *rq;
+        //struct *rq; 
+        //rq = list_entry(nd -> queue.next, struct request, queuelist);
+        //fp = fopen("./~/output.txt","a+");
+        //fprintf(fp, "TIME: %s ; SECTOR: %lu \n", asctime(timeinfo), rq_end_sector(rq)); 
+        struct request *rq;
                 rq = list_entry(nd->queue.next, struct request, queuelist);
-            	printk(KERN_ALERT "Dispatching request w/ sector no.: %lu\n",
+                trace_printk(KERN_ALERT "Dispatching request w/ sector no.: %lu\n",
                         rq_end_sector(rq));
+
                 list_del_init(&rq->queuelist);
-		/* update head position */
-		nd->head_pos = rq_end_sector(rq);
+        /* update head position */
+        nd->head_pos = rq_end_sector(rq);
                 elv_dispatch_sort(q, rq);
                 return 1;
         }
@@ -50,17 +68,17 @@ static int sstf_dispatch(struct request_queue *q, int force)
 
 static void __print_request_queue(struct request_queue *q)
 {
-	struct sstf_data *nd = q->elevator->elevator_data;
+        struct sstf_data *nd = q->elevator->elevator_data;
         struct list_head *iter = NULL;
         struct request *tmp = NULL;
         /*Iterate thru each element already in request queue*/
-	printk(KERN_ALERT "Printing Request Queue\nHead pos is %lu\n",
-		nd->head_pos);
+        printk(KERN_ALERT "\nPrinting Request Queue\nHead pos is %lu\n",
+                nd->head_pos);
         list_for_each(iter, &nd->queue){
-        	tmp = list_entry(iter, struct request, queuelist);
-        	printk(KERN_ALERT "\tRequest w/ Section %lu \n"
-				, blk_rq_pos(tmp));
-	}
+            tmp = list_entry(iter, struct request, queuelist);
+            printk(KERN_ALERT "\tRequest w/ Section %lu \n"
+                , blk_rq_pos(tmp));
+    }
 }
 
 /* -----------------NEED TO CHANGE THIS------------------------------- */
@@ -70,47 +88,56 @@ static void sstf_add_request(struct request_queue *q, struct request *rq)
         //sector_t cur; 
         printk(KERN_ALERT "Adding request w/ sector no.: %lu\n",
                         blk_rq_pos(rq));
-        struct list_head *iter = NULL;
-        struct request *tmp = NULL;
+        struct list_head *iter;
+        struct request *tmp;
+        iter = NULL;
+        tmp = NULL;
         /*Iterate thru each element already in request queue*/
         list_for_each(iter, &nd->queue){
-        	tmp = list_entry(iter, struct request, queuelist);
-//        	printk("Here is a req % lu \n", rq_end_sector(tmp));
-		/* Insertion Sort 1 */
-		if((blk_rq_pos(rq) > nd->head_pos)
-		&& ((blk_rq_pos(rq) < blk_rq_pos(tmp))
-		|| (blk_rq_pos(tmp) < nd->head_pos))){
-			/* Found position for request
-			 * Will be inserted on the head's current journey up
-			 * and before a bigger request
-			 * or if the end of the upward journey is reached
-			 *, simply between the head position
-			 * and the first request on the head's next journey up
-			 */
-			break;
-		}
-		/* Insertion Sort 2 */
-		if((blk_rq_pos(tmp) < nd->head_pos)
-		&& (blk_rq_pos(tmp) > blk_rq_pos(rq))){
-			/* Assume list is already correctly sorted
-			 * therefore "backend" of list is requests prepped
-			 * for next upward journey
-			 * Will therefore place new request in sorted order on
-			 * backend
-			 */
-			break;
-		}
-	}
-	/* At this point iteration was either broken because position for 
-	 * insertion was found or exhausted (including empty or singular
-	 * list case) 
-	 * That means its time to insert the new request!
-	 */
-	list_add_tail(&rq->queuelist, iter);
-	/* Note, even iteration quit before it began
-	 * iter stil got assigned at least the sentinel of queue
-	 */
-	__print_request_queue(q);
+            tmp = list_entry(iter, struct request, queuelist);
+//          printk("Here is a req % lu \n", rq_end_sector(tmp));
+        /* Insertion Sort 1 */
+            if((blk_rq_pos(rq) > nd->head_pos)
+            && ((blk_rq_pos(rq) < blk_rq_pos(tmp))
+            || (blk_rq_pos(tmp) < nd->head_pos))){
+            /* Found position for request
+             * Will be inserted on the head's current journey up
+             * and before a bigger request
+             * or if the end of the upward journey is reached
+             *, simply between the head position
+             * and the first request on the head's next journey up
+             */
+                break;
+            }
+            /* Insertion Sort 2 */
+            if((blk_rq_pos(tmp) < nd->head_pos)
+            && (blk_rq_pos(tmp) > blk_rq_pos(rq))){
+            /* Assume list is already correctly sorted
+             * therefore "backend" of list is requests prepped
+             * for next upward journey
+             * Will therefore place new request in sorted order on
+             * backend
+             */
+                break;
+            }
+    }
+    /* At this point iteration was either broken because position for 
+     * insertion was found or exhausted (including empty or singular
+     * list case) 
+     * That means its time to insert the new request!
+     */
+    list_add_tail(&rq->queuelist, iter);
+    /* Note, even iteration quit before it began
+     * iter stil got assigned at least the sentinel of queue
+     */
+    /*
+     * Check to sse if merge-able
+     */
+    if((sstf_latter_request(q, rq) != NULL)
+       && ((rq_end_sector(rq) == blk_rq_pos(sstf_latter_request(q, rq)))
+       || (rq_end_sector(rq) == blk_rq_pos(sstf_latter_request(q, rq)) + 1)))
+        sstf_merged_requests(q, rq, sstf_latter_request(q, rq));
+    __print_request_queue(q);
 }
 /* -----------------Change me ----------------------------------- */
 
@@ -126,7 +153,7 @@ sstf_former_request(struct request_queue *q, struct request *rq)
                 return NULL;
         return list_entry(rq->queuelist.prev, struct request, queuelist);
 }
-
+/*
 static struct request *
 sstf_latter_request(struct request_queue *q, struct request *rq)
 {
@@ -135,7 +162,7 @@ sstf_latter_request(struct request_queue *q, struct request *rq)
         if (rq->queuelist.next == &nd->queue)
                 return NULL;
         return list_entry(rq->queuelist.next, struct request, queuelist);
-}
+}*/
 /* Edited to initialize head position variable
  */
 static int sstf_init_queue(struct request_queue *q, struct elevator_type *e)
@@ -152,10 +179,10 @@ static int sstf_init_queue(struct request_queue *q, struct elevator_type *e)
                 kobject_put(&eq->kobj);
                 return -ENOMEM;
         }
-	/* Added head position variable
-	 * starts @ 0
-	 */
-	nd->head_pos = 0;
+    /* Added head position variable
+     * starts @ 0
+     */
+    nd->head_pos = 0;
         eq->elevator_data = nd;
 
         INIT_LIST_HEAD(&nd->queue);
