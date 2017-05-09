@@ -42,13 +42,13 @@ static int sstf_dispatch(struct request_queue *q, int force)
                 list_del_init(&rq->queuelist);
 		/* update head position */
 		nd->head_pos = rq_end_sector(rq);
-                elv_Gdispatch_sort(q, rq);
+                elv_dispatch_sort(q, rq);
                 return 1;
         }
         return 0;
 }
 
-static void __print_request_queue(request_queue *q)
+static void __print_request_queue(struct request_queue *q)
 {
 	struct sstf_data *nd = q->elevator->elevator_data;
         struct list_head *iter = NULL;
