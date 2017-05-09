@@ -1,0 +1,114 @@
+\documentclass{article}
+\usepackage[pdftex]{graphicx}
+\usepackage[utf8]{inputenc}
+
+
+\title{CS444 Operating Systems II, HW2 Writeup}
+\author{Brandon Dring, William Buffum \& Samuel Jacobs}
+\date{May 7th, 2017}
+\vfill
+
+
+\begin{document}
+\begin{titlepage}
+
+\center
+
+\textsc{\LARGE Homework 2 Writeup} \newline \newline
+{\large CS 444 Spring 2017}
+
+
+
+\begin{minipage}{0.4\textwidth}
+   \begin{flushleft} \large
+      \emph{Authors:}\\
+      Brandon Dring \\
+      Billy Buffum \\
+      Samuel Jacobs
+   \end{flushleft}
+\end{minipage}
+~
+\begin{minipage}{0.4\textwidth}
+   \begin{flushright} \large
+      \emph{Professor:} \\
+      Dr. Kevin \textsc{McGrath} % Supervisor's Name
+   \end{flushright}
+\end{minipage} \\ [4cm]
+
+{\large May 7th, 2017}
+\vfill % Fill the rest of the page with whitespace
+
+\begin{abstract}
+    Here we are going to be looking at what it takes to implement a sstf CLOOK elevator algorithm for disk I/O, in a linux yocto kernel v 3.14.26.
+\end{abstract}
+
+
+\pagebreak
+
+\end{titlepage}
+\newpage
+
+
+\section{Design Plan}
+    \subsection{Design Decisions}
+    We first consulted Love's book on Linux Kernel development[2] to better understand the purpose and operation of the I/O scheduler in the Linux Kernel.  This helped us better understand the pre-existing algorithms.\\\\
+    Once we understood the role of the I/O scheduler, we read through Illinois Institute of Technology's page[1] on different algorithms.  With these in mind, we were able to implement the algorithm.
+    \subsection{CLOOK Implementation}
+    The CLOOK algorithm maintains a request queue sorted in the order that they should be dispatched.  The "front half" of the queue has requests with a position greater than the head's position, sorted in ascending order.  The second half has requests with positions less than the head's current position, also sorted in ascending order.  This way, when the head dispatches all the requests, it will travel up to the highest request, then back down to restart dispatching.\\\\
+    The CLOOK algorithm maintains the sorted queue with two insertion sorts.  The choice of insertion sort depends on the current position of the disk head.  At the start of insertion, the algorithm iterates through the list.
+    If the new request is bigger than the head position, the iterator will break if it finds an existing request with a greater position sector than the new request or an existing request with a position less than the head position (This second case will put the new request at the end of the "front half").\\\\
+    If the new request is smaller than the current head position, the iterator will break if it finds an existing request that has a smaller sector position than the head's and is larger than the new request.\\\\
+    At the end of iteration, the request is added in front of whatever request broke the iterator.  If the iteration completed, the request is added at the end of the queue.
+    The results of the request queue in action are pictured in figure \ref{fig:rq_q}
+
+
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=13cm]{request_queue.png}
+        \caption{Request Queue (without merging)}
+        \label{fig:rq_q}
+    \end{figure}
+
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width = 13cm]{qGraph.png}
+        \caption{Sectors from the dispatch queue being serviced}
+    \end{figure}
+
+\section{Questions}
+    \subsection{What do you think the main point of the assignment is?}
+    The main point of the assignment I believe is to get some actual experience working withing the linux kernel. Along with learning different types of I/O schedulers,  And to better understand disk I/O scheduling algorithms.
+
+    \subsection{How did you approach the problem?}
+    We started by first looking at how the no-op scheduler first works, then we read up on exactly what the SSTF algorithm means, and the same for the CLOOK/LOOK algorithms. We settled on the CLOOK implementation since it seemed to be easier starting back at 0 rather than starting from the end back to the beginning.
+    \subsection{How did you ensure your solution was correct? Testing details, for instance.}
+    Testing was the first part of the assignment. Firstly, we needed to tell if what we were doing actually made any change on the kernel and we had to track what we did. Firstly, Brandon made a test script that generated random I/O input and output. It generated 10 files shuffled the order in which they were accessed, wrote random things to them to be read later. And when they got too big, it was deleted and a new empty file was created to be read and wrote too. Afterwards inside the dispatch function inside the scheduler, a trace\_printk statement was added so that all sector numbers being serviced would be written to a file somewhere in the kernel. Afterwards when the VM was running you run the I/O script for a couple seconds to generate some I/O and go check the trace file. Afterwards it was a matter of parsing the trace file in Python and using pyplot to graph the sector numbers being serviced with a line graph. Once the graph had the correct mountain look we knew we were done.
+
+    \subsection{What did you learn?}
+    This assignment was divisoned into two main components: modifying the kernel I/O scheduler and implementing the Dining Philosophers concurrency exercise.
+
+    \subsubsection{Creating and configuring the C-LOOK I/O Scheduler}
+    After creating the C-Look I/O Scheduler, we had to ensure the virtual machine was able to boot that scheduler. In order to do this, we learned where the I/O schedulers are located and how to properly configure the Makefile and Kconfig.iosched files.\\
+
+    It turns out, that it's a relatively straight-forward process because the assignment description explains where to find the Noop scheduler; then it was a simple task of creating another config section in the Kconfig.iosched to allow our scheduler to be selected as an option. It was pretty obvious that we needed to add our object file to the Makefile in order for the Kernel to link it.
+
+    \subsubsection{Dining Philosophers}
+        As for the Dining philosophers problem it gave us some decent experience in how to implement TRUE concurrency in Python. In which none of use have really tried to run anything concurrently in Python before. It also gave a clear demonstration on how deadlock/starvation can happen. And how to fix said problems that arise when trying to build a concurrent program.
+
+
+    \subsection*{Work Log }
+\begin{itemize}
+  \item \textit{4-25-2017}\\ Brandon Dring started and finished the Dining Philosophers problem \\
+  \item \textit{5-2-2017}\\ Brandon and Billy got the VM booting the new scheduler (which was a copy of NOOP file) after changing the Kconfig, and makefile \\
+  \item \textit{5-4-2017}\\ The group came together and created a new vanilla VM to apply patches too. Along with finding a design plan and decision on how to implement the new scheduler \\
+  \item \textit{5-4-2017}\\ Brandon Dring created test scripts to be ran on the VM to ensure that I/O requests were being generated \\
+  \item \textit{5-4-2017}\\ Brandon Dring adds trace statements to the dispatch function of sectors to be serviced \\
+  \item \textit{5-6-2017}\\ Samuel builds the new scheduler overnight  \\
+  \item \textit{5-7-2017}\\ Brandon Dring runs VM and tests solution and gets data from trace file, then runs it through a Python parser and grapher to check to see if solution is correct. \\
+  \item \textit{5-7-2017}\\ Group comes together again and does end of assignment paperwork stuff \\
+\end{itemize}
+
+    \section{References}
+        [1] \hspace{10mm} DISK SCHEDULING ALGORITHMS http://www.cs.iit.edu/~cs561/ \newline \hspace{10mm} cs450/disksched/disksched.html (Accessed 5/8/17) \newline
+        [2] \hspace{10mm} Robert Love Linux Kernel Development (Novell Press) 2005
+\end{document}
