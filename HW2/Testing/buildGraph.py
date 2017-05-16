@@ -11,9 +11,7 @@ def doWork(file):
     for i in data:
         num += 1
         idx.append(num)
-
         clean = i[-10:].split(": ")
-        print(clean[1])
         i = float(clean[1])
         points.append(i)
     plt.xlabel("Dispatch Request Number")
