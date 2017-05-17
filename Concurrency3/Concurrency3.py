@@ -3,9 +3,7 @@ from multiprocessing import Manager as man
 import random
 from time import sleep
 
-searcherLock = RLock()
-inserterLock = RLock()
-deleterLock = RLock()
+searcherLock, inserterLock, deleterLock = RLock(), RLock(), RLock()
 manager = man()
 sharedList = manager.list()
 """
@@ -21,40 +19,40 @@ def searcher(id):
     # Block out:
     #   nothing
     while(True):
-        print(str(id))
-        sleep(1.5)
+        sleep(1.75)
         if(isNotLocked(searcherLock)):
             searcherLock.acquire(False)
             try:
                 searcherLock.release()
-
             except AssertionError:
                 pass
             else:
                 pass
-            # searcherLock.release()
             # Searcher doesnt need to actually lock searcher lock,
             # Just needs to make sure its not locked by deleter thread
             # look through list
-            # print("List: ")
-            print("SEARCHING: " + str(sharedList))
+            print(str(id))
+            print(str(id) + " SEARCHING: " + str(sharedList))
+            print(str(id) + " DONE SEARCHING!!! \n")
+        else:
+            print(str(id) + " HAS BEEN BLOCKED!!! \n")
 
 
 def inserter(id):
 
     while (True):
-        sleep(1)
-        print("Inserter")
+        sleep(1.5)
         if (isNotLocked(deleterLock)
                 and isNotLocked(inserterLock)):
             deleterLock.acquire(False)
             inserterLock.acquire(False)
-            print(str(id) + " has blocked deleters and other inserters")
+            print(str(
+                id) + " has deleteLock and insertLock, blocking other delters and inserters!! \n")
             randNum = random.randint(1, 20)
             appendData = id + str(" has appended ") + str(randNum)
-            print(appendData)
+            print(str(appendData))
             sharedList.append(randNum)
-            print(sharedList)
+            print(id + " " + str(sharedList) + " DONE!!! \n")
             try:
                 deleterLock.release()
                 inserterLock.release()
@@ -62,6 +60,8 @@ def inserter(id):
                 pass
             else:
                 pass
+        else:
+            print(str(id) + " HAS BEEN BLOCKED!!! \n")
 
             # Block out:
             #   other inserters
@@ -71,8 +71,7 @@ def inserter(id):
 
 def deleter(id):
     while(True):
-        sleep(1.5)
-        print(str(id))
+        sleep(1)
         if (isNotLocked(deleterLock) and isNotLocked(inserterLock) and isNotLocked(searcherLock)):
             deleterLock.acquire(False)
             inserterLock.acquire(False)
@@ -80,7 +79,7 @@ def deleter(id):
             if (len(sharedList) > 0):
                 removed = sharedList.pop()
                 print(str(id) + " has deleted " + str(removed))
-                print(sharedList)
+                print(id + " " + str(sharedList) + " DONE!! \n")
             try:
                 deleterLock.release()
                 inserterLock.release()
@@ -89,9 +88,8 @@ def deleter(id):
                 pass
             else:
                 pass
-            # deleterLock.release()
-            # inserterLock.release()
-            # searcherLock.release()
+        else:
+            print(str(id) + " BLOCKED!!! \n")
 
     # Block out
     #   inserters
