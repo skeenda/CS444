@@ -17,20 +17,19 @@ deleters: block deleters, block inserters, block searchers
 
 
 def findBlockers(id):
-    print(str(id) + " BLOCKED!!!" + str(names) + " \n")
-    sleep(random.randint(2, 5))
+    print(str(id) + " BLOCKED!!! " + str(names) + " \n")
+    sleep(random.randint(2, 8))
 
 
 def searcher(id):
     while(True):
         if not ("deleter:" in names.deleteLock):
-            names.deleteLock = str(id)
-            print(str(id) + " Starting search: " + str(sharedList))
-            sleep(1)
+            print(str(id) + " Starting search: " + str(names))
+            sleep(1.75)
+            print(id + " FOUND " + str(sharedList))
             print(str(id) + " DONE SEARCHING!!! \n")
-            print(id + " FOUND " + str(sharedList) + str(names))
-            names.deleteLock = "None"
-            sleep(random.randint(2, 5))
+            sleep(random.randrange(2, 15, 1) / 2)
+
         else:
             findBlockers(id)
 
@@ -40,18 +39,18 @@ def inserter(id):
         if (isNotLocked(deleterLock, inserterLock)):
             names.deleteLock = id
             names.insertLock = id
-            print("STARTING: " + id)
+            print("STARTING: " + id + str(names))
             randNum = random.randint(1, 20)
-            sleep(1)
+            sleep(1.75)
             appendData = id + str(" has appended ") + str(randNum)
             print(str(appendData))
             sharedList.append(randNum)
             deleterLock.release()
             inserterLock.release()
-            print(id + " " + str(sharedList) + " DONE!!! " + str(names) + "\n")
             names.deleteLock = "None"
             names.insertLock = "None"
-            sleep(random.randint(2, 5))
+            print(id + " " + str(sharedList) + " DONE!!! " + str(names) + "\n")
+            sleep(random.randrange(2, 15, 1) / 2)
         else:
             findBlockers(id)
 
@@ -59,12 +58,12 @@ def inserter(id):
 def deleter(id):
     while(True):
         if (isNotLocked(deleterLock, inserterLock, searcherLock)):
-
             names.deleteLock = id
             names.insertLock = id
             names.searchLock = id
-            print("STARTING: " + id)
-            sleep(1)
+            print("STARTING: " + id + " " + str(names))
+
+            sleep(1.75)
             if (len(sharedList) > 0):
                 removed = sharedList.pop()
                 print(str(id) + " has deleted " + str(removed))
@@ -72,12 +71,12 @@ def deleter(id):
             deleterLock.release()
             inserterLock.release()
             searcherLock.release()
-            print(str(id) + " DONE!!! " + str(names))
+
             names.deleteLock = "None"
             names.insertLock = "None"
             names.searchLock = "None"
-
-            sleep(random.randint(2, 5))
+            print(str(id) + " DONE!!! " + str(names))
+            sleep(random.randrange(2, 15, 1) / 2)
         else:
             findBlockers(id)
 
