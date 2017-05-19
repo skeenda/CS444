@@ -1,108 +1,97 @@
-from multiprocessing import Process, RLock, Array
+from multiprocessing import Process, Lock
 from multiprocessing import Manager as man
 import random
 from time import sleep
 
-searcherLock, inserterLock, deleterLock = RLock(), RLock(), RLock()
-manager = man()
-sharedList = manager.list()
-"""
+man = man()
+searcherLock, inserterLock, deleterLock = man.Lock(), man.Lock(), man.Lock()
+names = man.Namespace()
+names.searchLock, names.insertLock, names.deleteLock = "None", "None", "None"
+sharedList = man.list()
 
+"""
 searchers: parallel with searchers
 inserters: block inserters, parallel with searchers
 deleters: block deleters, block inserters, block searchers
-
 """
 
 
+def findBlockers(id):
+    print(str(id) + " BLOCKED!!!" + str(names) + " \n")
+    sleep(random.randint(2, 5))
+
+
 def searcher(id):
-    # Block out:
-    #   nothing
     while(True):
-        sleep(1.75)
-        if(isNotLocked(searcherLock)):
-            searcherLock.acquire(False)
-            try:
-                searcherLock.release()
-            except AssertionError:
-                pass
-            else:
-                pass
-            # Searcher doesnt need to actually lock searcher lock,
-            # Just needs to make sure its not locked by deleter thread
-            # look through list
-            print(str(id))
-            print(str(id) + " SEARCHING: " + str(sharedList))
+        if not ("deleter:" in names.deleteLock):
+            names.deleteLock = str(id)
+            print(str(id) + " Starting search: " + str(sharedList))
+            sleep(1)
             print(str(id) + " DONE SEARCHING!!! \n")
+            print(id + " FOUND " + str(sharedList) + str(names))
+            names.deleteLock = "None"
+            sleep(random.randint(2, 5))
         else:
-            print(str(id) + " HAS BEEN BLOCKED!!! \n")
+            findBlockers(id)
 
 
 def inserter(id):
-
     while (True):
-        sleep(1.5)
-        if (isNotLocked(deleterLock)
-                and isNotLocked(inserterLock)):
-            deleterLock.acquire(False)
-            inserterLock.acquire(False)
-            print(str(
-                id) + " has deleteLock and insertLock, blocking other delters and inserters!! \n")
+        if (isNotLocked(deleterLock, inserterLock)):
+            names.deleteLock = id
+            names.insertLock = id
+            print("STARTING: " + id)
             randNum = random.randint(1, 20)
+            sleep(1)
             appendData = id + str(" has appended ") + str(randNum)
             print(str(appendData))
             sharedList.append(randNum)
-            print(id + " " + str(sharedList) + " DONE!!! \n")
-            try:
-                deleterLock.release()
-                inserterLock.release()
-            except AssertionError:
-                pass
-            else:
-                pass
+            deleterLock.release()
+            inserterLock.release()
+            print(id + " " + str(sharedList) + " DONE!!! " + str(names) + "\n")
+            names.deleteLock = "None"
+            names.insertLock = "None"
+            sleep(random.randint(2, 5))
         else:
-            print(str(id) + " HAS BEEN BLOCKED!!! \n")
-
-            # Block out:
-            #   other inserters
-            #   any deleters
-            # Critical part
+            findBlockers(id)
 
 
 def deleter(id):
     while(True):
-        sleep(1)
-        if (isNotLocked(deleterLock) and isNotLocked(inserterLock) and isNotLocked(searcherLock)):
-            deleterLock.acquire(False)
-            inserterLock.acquire(False)
-            searcherLock.acquire(False)
+        if (isNotLocked(deleterLock, inserterLock, searcherLock)):
+
+            names.deleteLock = id
+            names.insertLock = id
+            names.searchLock = id
+            print("STARTING: " + id)
+            sleep(1)
             if (len(sharedList) > 0):
                 removed = sharedList.pop()
                 print(str(id) + " has deleted " + str(removed))
-                print(id + " " + str(sharedList) + " DONE!! \n")
-            try:
-                deleterLock.release()
-                inserterLock.release()
-                searcherLock.release()
-            except AssertionError:
-                pass
-            else:
-                pass
+                print(id + " has made list " + str(sharedList) + "\n")
+            deleterLock.release()
+            inserterLock.release()
+            searcherLock.release()
+            print(str(id) + " DONE!!! " + str(names))
+            names.deleteLock = "None"
+            names.insertLock = "None"
+            names.searchLock = "None"
+
+            sleep(random.randint(2, 5))
         else:
-            print(str(id) + " BLOCKED!!! \n")
-
-    # Block out
-    #   inserters
-    #   Deleters
-    #   Searchers
+            findBlockers(id)
 
 
-def isNotLocked(lock):
-    if (lock.acquire(False)):
-        lock.release()
-        return True
-    else:
-        return False
+def isNotLocked(*lock):
+    todo = []
+    for i in lock:
+        if i.acquire(False):
+            todo.append(i)
+        else:
+            for j in todo:
+                j.release()
+            return False
+    return True
 
 
 def startStuff():
