@@ -21,7 +21,7 @@
 #include <linux/blkdev.h>
 #include <linux/buffer_head.h>	/* invalidate_bdev */
 #include <linux/bio.h>
-#include <linux/crypto.h>
+#include <linux/crypto.h> // For all your crypto needs
 
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -34,6 +34,11 @@ static int nsectors = 1024;	/* How big the drive is */
 module_param(nsectors, int, 0);
 static int ndevices = 4;
 module_param(ndevices, int, 0);
+
+struct crypto_cipher *cipher;
+char *cipherKey = "I hate kernel stuff";
+
+
 
 /*
  * The different "request modes" we can use.
@@ -98,11 +103,23 @@ static void sbull_transfer(struct sbull_dev *dev, unsigned long sector,
 {
 	unsigned long offset = sector*KERNEL_SECTOR_SIZE;
 	unsigned long nbytes = nsect*KERNEL_SECTOR_SIZE;
+	
 
 	if ((offset + nbytes) > dev->size) {
 		printk (KERN_NOTICE "Beyond-end write (%ld %ld)\n", offset, nbytes);
 		return;
 	}
+	
+		// at each request encrypt or decrpt data
+	
+	
+	
+		
+
+	
+	
+	
+	
 	if (write)
 		memcpy(dev->data + offset, buffer, nbytes);
 	else
@@ -416,6 +433,21 @@ static void setup_device(struct sbull_dev *dev, int which)
 static int __init sbull_init(void)
 {
 	int i;
+	
+	
+		// initialize the crypto during device init
+	cipher = crypto_alloc_cipher("aes",0,0);
+	if (IS_ERR(cipher)){
+		printk("COULD NOT CREATE CIPHER!!! \n");
+		return PTR_ERR(cipher);
+	}
+	
+	int keySet = crypto_cipher_setkey(cipher, cipherKey,strlen(cipherKey));
+	if (keySet != 0)
+		printk(KERN_ERR "Could not set crypto key!!!");
+	
+	
+	
 	/*
 	 * Get registered.
 	 */
@@ -461,6 +493,8 @@ static void sbull_exit(void)
 		if (dev->data)
 			vfree(dev->data);
 	}
+		// remove cipher when device is exiting
+	crypto_free_cipher(cipher);
 	unregister_blkdev(sbull_major, "sbull");
 	kfree(Devices);
 }
