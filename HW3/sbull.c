@@ -36,7 +36,7 @@ static int ndevices = 4;
 module_param(ndevices, int, 0);
 
 struct crypto_cipher *cipher;
-char *cipherKey = "I_hate_kernel_stuff";
+char cipherKey[] = "I_hate_kernel_stuff";
 
 
 
@@ -95,6 +95,12 @@ static int bytes_to_sectors_checked(unsigned long bytes)
 	return bytes / KERNEL_SECTOR_SIZE;
 }
 
+static void view_word(unsigned char *data, unsigned int len)
+{
+    while(len--)
+        printk("%02x", *data++);
+    printk("\n");
+}
 /*
  * Handle an I/O request.
  */
@@ -104,26 +110,40 @@ static void sbull_transfer(struct sbull_dev *dev, unsigned long sector,
 	unsigned long offset = sector*KERNEL_SECTOR_SIZE;
 	unsigned long nbytes = nsect*KERNEL_SECTOR_SIZE;
 	
+	//printk(KERN_ALERT "In request");
 
 	if((offset + nbytes) > dev->size) {
 		printk (KERN_NOTICE "Beyond-end write (%ld %ld)\n", offset, nbytes);
 		return;
 	}
-	
+
+	crypto_cipher_clear_flags(cipher, ~0);
+	crypto_cipher_setkey(cipher, cipherKey, sizeof(cipherKey));
 		// at each request encrypt or decrpt data	
 	int i = 0;
 	if (write){
+//		printk("Before Write:");
+//        view_word(buffer, nbytes);
+    
 		for (i = 0; i < nbytes; i += crypto_cipher_blocksize(cipher)){   
 		//    memcpy(dev->data + offset, buffer, nbytes); //write data to the sector position
-		//    printk("Before attempted encrpytion %#x \n", dev -> data + offset);	
+		//    printk("Before attempted encrpytion %#x \n", dev -> data + offset);
 		    crypto_cipher_encrypt_one(cipher, dev -> data + offset +i, buffer + i);  
 		//    printk("After attempted encrpytion %#x \n", dev -> data + offset);	
-		 }
+         }
+//		 printk("After Write:");
+//         view_word(dev->data + offset, nbytes);
+    
 	}else{
-	    for (i = 0; i < nbytes; i += crypto_cipher_blocksize(cipher))
-		crypto_cipher_decrypt_one(cipher,buffer + i , dev-> data + offset+ i );
-	   // memcpy(buffer, dev->data + offset, nbytes);
+//		printk("Before Read:");
+  //      view_word(dev->data + offset, nbytes);
+	    for (i = 0; i < nbytes; i += crypto_cipher_blocksize(cipher)){
+		    crypto_cipher_decrypt_one(cipher,buffer + i , dev-> data + offset+ i );
+	    }
+//	    printk("After Read:");
+//	    view_word(buffer, nbytes);
 	}
+	memcpy(buffer, dev->data + offset, nbytes);
 }
 
 /*
@@ -138,13 +158,13 @@ static void sbull_request(struct request_queue *q)
 	while (req) {
 		struct sbull_dev *dev = req->rq_disk->private_data;
 		if (req->cmd_type != REQ_TYPE_FS) {
-			printk (KERN_NOTICE "Skip non-fs request\n");
+			//printk (KERN_NOTICE "Skip non-fs request\n");
 			ret = -EIO;
 			goto done;
 		}
-		printk (KERN_NOTICE "Req dev %u dir %d sec %ld, nr %d\n",
-			(unsigned)(dev - Devices), rq_data_dir(req),
-			blk_rq_pos(req), blk_rq_cur_sectors(req));
+		//printk (KERN_NOTICE "Req dev %u dir %d sec %ld, nr %d\n",
+	//		(unsigned)(dev - Devices), rq_data_dir(req),
+	//		blk_rq_pos(req), blk_rq_cur_sectors(req));
 		sbull_transfer(dev, blk_rq_pos(req), blk_rq_cur_sectors(req),
 				req->buffer, rq_data_dir(req));
 		ret = 0;
@@ -436,15 +456,16 @@ static int __init sbull_init(void)
 	
 	
 		// initialize the crypto during device init
+	//cipher = crypto_alloc_cipher("aes",4,CRYPTO_ALG_ASYNC);
 	cipher = crypto_alloc_cipher("aes",0,0);
-	if (IS_ERR(cipher)){
+	if (IS_ERR(cipher)||(cipher==NULL)){
 		printk("COULD NOT CREATE CIPHER!!! \n");
 		return PTR_ERR(cipher);
 	}
-	
-	int keySet = crypto_cipher_setkey(cipher, cipherKey,strlen(cipherKey));
-	if (keySet != 0)
-		printk(KERN_ERR "Could not set crypto key!!!");
+	// re insert this guy later if needed possible mount error?
+	//crypto_cipher_setkey(cipher, cipherKey, sizeof(cipherKey));
+//	if (keySet != 0)
+//		printk(KERN_ERR "Could not set crypto key!!!: %d\n", keySet);
 	
 	
 	
