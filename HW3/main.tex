@@ -1,3 +1,74 @@
+\documentclass{article}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage[pdftex]{graphicx}
+\usepackage{geometry}
+
+\title{CS444 Operating Systems II, HW2 Writeup}
+\author{Brandon Dring, William Buffum \& Samuel Jacobs}
+\date{May 7th, 2017}
+\vfill
+
+
+\begin{document}
+\begin{titlepage}
+
+\center
+
+\textsc{\LARGE \hspace{15mm} Homework 2 Writeup} \newline \newline
+{\large CS 444 Spring 2017}
+
+
+
+\begin{minipage}{0.4\textwidth}
+   \begin{flushleft} \large
+      \emph{Authors:}\\
+      Brandon Dring \\
+      Billy Buffum \\
+      Samuel Jacobs
+   \end{flushleft}
+\end{minipage}
+~
+\begin{minipage}{0.4\textwidth}
+   \begin{flushright} \large
+      \emph{Professor:} \\
+      Dr. Kevin \textsc{McGrath} % Supervisor's Name
+   \end{flushright}
+\end{minipage} \\ [4cm]
+
+{\large May 7th, 2017}
+\vfill % Fill the rest of the page with whitespace
+
+\begin{abstract}
+    Here we are looking at how to implement a RAM disk driver that also does encryption and decryption at the block level under the file system. This implementation is done by using the Linux Crypto API from the linux-yocto-3.14 which notoriously has terrible documentation.
+\end{abstract}
+
+\pagebreak
+
+\end{titlepage}
+\newpage
+\special{papersize=8.5in,11in}
+\setlength{\pdfpageheight}{\paperheight}
+\setlength{\pdfpagewidth}{\paperwidth}
+
+
+\section{Design}
+    For the most part the only design that needed to be done was trying to figure out how to test and simply get the RAM disk running on the VM. As stated by McGrath he pointed us to most of the stuff that we needed such as the basic disk driver. The encryption documentation could be found across the Internet. The only thing needed for encryption was to initialize the device, remove it, and encrypt / decrypt blocks as they came in. And add select print statements for debugging, tracing, and testing to ensure the solution was correct.
+
+
+\section{Work Log}
+\begin{itemize}
+    \item     Group meeting about basic project requirements 5/9/17
+    \item Sam set up Kconfig \& Makefile to support new files for assignment 5/16/17
+    \item Sam went to see Kevin during Office hours on Thursday 5/18/17
+    \item Brandon found website \url{https://01.org/linuxgraphics/gfx-docs/drm/crypto/api-skcipher.html#single-block-cipher-api} and
+    \url{http://elixir.free-electrons.com/linux/latest/source/include/linux/crypto.h#L1479}  that explained the linux crypto API
+    \item     Group came over to Brandon’s house to finish assignment 5/20/17
+    \item     Brandon writes post assignment writeup 5/21/17
+
+\end{itemize}
+
+\section{VCS}
 \begin{tabular}{l l l}\textbf{Detail} & \textbf{Author} & \textbf{Description}\\\hline
 \href{https://github.com/El-Dringo-Brannde/CS444/commit/1040abe06276b44779d7090f4dcf3f12aa14f5ff}{1040abe} & El-Dringo-Brannde & Initial commit\\\hline
 \href{https://github.com/El-Dringo-Brannde/CS444/commit/4bbf81171861f808e93ce47478cca496c0b0fe89}{4bbf811} & El-Dringo-Brannde & Started on Producer\\\hline
@@ -47,3 +118,20 @@
 \href{https://github.com/El-Dringo-Brannde/CS444/commit/55d8d90d4e46f89dec05ccae1516ca4e5d92b735}{55d8d90} & El-Dringo-Brannde & Encryption not working?\\\hline
 \href{https://github.com/El-Dringo-Brannde/CS444/commit/d3340f45a4840a2d1b276dd7cf42580253cc1db4}{d3340f4} & El-Dringo-Brannde & Working encryption I think\\\hline
 \href{https://github.com/El-Dringo-Brannde/CS444/commit/53c9bec7d0583d604b5ece65864842ad30888efb}{53c9bec} & El-Dringo-Brannde & demoScript added.\\\hline\end{tabular}
+
+
+\section{Follow Up Questions}
+\subsection{What do you think the main point of this assignment is?}
+    The main point of the assignment seemed to be how to get something working with almost no documentation. If you look at the crypto library in the Linux kernel you see that there is literally NO documentation for their crypto API, which might be on purpose since it’d just make it harder to crack.
+    But this assignment also has the task of creating a module for the linux kernel, and having to have a module parameter.
+    Oh and of course trying to create a file system from a RAM disk, partitioning and mounting it.
+\subsection{How did you personally approach the problem? Design decisions, algorithm, etc.}
+    First we looked online at just trying to get any documentation at all for the linux crypto API. Luckily, there are some kind souls that have documented it for us, which is nice. Then we looked at sbd.c and sbull.c source code for the code that actually creates the file system and handles requests
+
+We also looked how to create, partition, and mount, a RAM disk to store the file system to be encrypted.
+\subsection{How did you ensure your solution was correct? Testing details, for instance.}
+    For testing we wrote a simple little script to create some text in a file, then we did a cat operation on the device to return the garbled text since the file isn't being decrypted when read. Then the script does a cat operation on the mount point of the drive to the file and when it does that it returns clear text. Demonstrating that the file encryption and decryption does indeed work since encryption level stuff works on the mount point not the device.
+\subsection{What did you learn?}
+        We learned how to use a rough version of the linux crypto API to encrypt stuff at the block level, and to create a linux module and embed it in a VM while it is running. And how to create a RAM disk on Linux, partition, and mount it.
+
+\end{document}
