@@ -36,7 +36,7 @@ static int ndevices = 4;
 module_param(ndevices, int, 0);
 
 struct crypto_cipher *cipher;
-char *cipherKey = "I hate kernel stuff";
+char *cipherKey = "I_hate_kernel_stuff";
 
 
 
@@ -82,16 +82,16 @@ struct sbull_dev {
         struct request_queue *queue;    /* The device request queue */
         struct gendisk *gd;             /* The gendisk structure */
         struct timer_list timer;        /* For simulated media changes */
-};
 
+};
 static struct sbull_dev *Devices = NULL;
 
 static int bytes_to_sectors_checked(unsigned long bytes)
 {
-	if( bytes % KERNEL_SECTOR_SIZE )
-	{
+    if( bytes % KERNEL_SECTOR_SIZE )
+    {	
 		printk("***************WhatTheFuck***********************\n");
-	}
+    }
 	return bytes / KERNEL_SECTOR_SIZE;
 }
 
@@ -105,25 +105,25 @@ static void sbull_transfer(struct sbull_dev *dev, unsigned long sector,
 	unsigned long nbytes = nsect*KERNEL_SECTOR_SIZE;
 	
 
-	if ((offset + nbytes) > dev->size) {
+	if((offset + nbytes) > dev->size) {
 		printk (KERN_NOTICE "Beyond-end write (%ld %ld)\n", offset, nbytes);
 		return;
 	}
 	
-		// at each request encrypt or decrpt data
-	
-	
-	
-		
-
-	
-	
-	
-	
-	if (write)
-		memcpy(dev->data + offset, buffer, nbytes);
-	else
-		memcpy(buffer, dev->data + offset, nbytes);
+		// at each request encrypt or decrpt data	
+	int i = 0;
+	if (write){
+		for (i = 0; i < nbytes; i += crypto_cipher_blocksize(cipher)){   
+		//    memcpy(dev->data + offset, buffer, nbytes); //write data to the sector position
+		//    printk("Before attempted encrpytion %#x \n", dev -> data + offset);	
+		    crypto_cipher_encrypt_one(cipher, dev -> data + offset +i, buffer + i);  
+		//    printk("After attempted encrpytion %#x \n", dev -> data + offset);	
+		 }
+	}else{
+	    for (i = 0; i < nbytes; i += crypto_cipher_blocksize(cipher))
+		crypto_cipher_decrypt_one(cipher,buffer + i , dev-> data + offset+ i );
+	   // memcpy(buffer, dev->data + offset, nbytes);
+	}
 }
 
 /*
