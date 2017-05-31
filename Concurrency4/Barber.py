@@ -101,12 +101,12 @@ class Customer(Person):
                            " is about to walk into the barbershop")
             if (self.barber.checkLine() < sharedDict['chairs'] and self.inque()):
                 self.safeprint(
-                    self.name + " takes a seat to get their hair cut")
+                    self.name + " finds a seat to get their hair cut")
                 self.barber.getInLine(self)  # get in line
             else:
                 self.safeprint(
                     self.name + " can't find a seat and storms out! \n")
-            sleep(random.randrange(18, 24))
+            sleep(random.randrange(18, 24) / 1.05)
 
 
 def buildObjects(barber):
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     # put the Barber class into a manager to be shared
     theBarber = manager.Barber("Bob", "Barber")
     people = buildObjects(theBarber)
-    sharedDict['chairs'] = chairs
+    sharedDict['chairs'] = int(chairs)
     print("Chairs used " + str(chairs))
     sharedDict['inLine'] = 0
     for i in people:
