@@ -1,147 +1,83 @@
 from multiprocessing import Process, Lock
-from multiprocessing.managers import BaseManager
 from multiprocessing import Manager as man
 import random
 from time import sleep
 import sys
 
-
 man = man()
-mutex = man.Lock()
-busyBob = man.Lock()
-sharedDict = man.dict()
+printLock = man.Lock()
+tableLock = man.Lock()
+onTable = man.list()
 
 
 class Person:
-    def __init__(self, name, role):
-        self.name = name
-        self.role = role
+	def __init__(self, name, role):
+		self.name = name
+		self.role = role
+		print('Hi my name is ' + name)
 
-    def getName(self):
-        return self.name
-
-    def getRole(self):
-        return self.role
-
-    def safeprint(self, toPrint):
-        mutex.acquire()
-        print(toPrint)
-        mutex.release()
+	def safePrint(self, toPrint):
+		printLock.acquire()
+		print(toPrint)
+		printLock.release()
 
 
-class Barber(Person):
-    def __init__(self, name, role):
-        Person.__init__(self, name, role)
-        self.chairsTaken = 0
-        self.que = []
+class smoker(Person):
+	def __init__(self, name, has, role):
+		Person.__init__(self, name, role)
+		self.has = has
+		self.needs = self.getNeeds(self.has)
+		print("I need", self.needs)
 
-    def cutHair(self, customer):
-        self.safeprint(self.name + " is cutting " +
-                       customer.name + "'s hair \n")
-        busyBob.acquire()
-        sleep(2)
-        busyBob.release()
+	def getNeeds(self, has):
+		needs = []
+		products = ["tobacco", "paper", "matches"]
+		for i in products:
+			if (str(has) != str(i)):
+				needs.append(i)
+		return needs
 
-    def getInLine(self, customer):
-        self.safeprint(customer.name + " waives to Bob for a haircut\n")
-        self.que.append(customer)
-        self.chairsTaken += 1
-
-    def nextCustomer(self):
-        curCustomer = self.que.pop(0)
-        self.safeprint("Bob says " + curCustomer.name + " you're next! ")
-        self.cutHair(curCustomer)
-
-    def barberStart(self):
-        self.safeprint(self.getName() + " is going to work.. \n")
-        while True:
-            if (len(self.que) != 0):
-                self.safeprint(self.name + " says 'ok let's get started!'")
-                self.nextCustomer()
-                self.safeprint(
-                    self.name + " just got done cutting hair and is taking a break")
-                self.chairsTaken -= 1
-                self.printQue()
-            else:
-                self.safeprint("No one is here.. " +
-                               self.name + " is going to sleep")
-                self.safeprint(self.name + ": 'zzzzzzz'\n")
+	def smokerStart(self):
+		print("SMOKER waiting")
+        while(True):
             sleep(2)
-
-    def printQue(self):
-        tmp = []
-        for i in self.que:
-            tmp.append(i.name)
-        self.safeprint("Current Que for haircuts:")
-        self.safeprint(tmp)
-        self.safeprint("\n")
-
-    def checkLine(self):
-        return self.chairsTaken
-
-    def getque(self):
-        return self.que
+            print(self.name + " needs to smoke")
 
 
-class Customer(Person):
-    def __init__(self, name, role, barber):
-        Person.__init__(self, name, role)
-        self.barber = barber
-
-    def inque(self):
-        inQue = self.barber.getque()
-        for i in inQue:
-            if i.name == self.name:
-                return False
-        return True
-
-    def custStart(self):
-        while (True):
-            self.safeprint(self.getName() +
-                           " is about to walk into the barbershop")
-            if (self.barber.checkLine() < sharedDict['chairs'] and self.inque()):
-                self.safeprint(
-                    self.name + " finds a seat to get their hair cut")
-                self.barber.getInLine(self)  # get in line
-            else:
-                self.safeprint(
-                    self.name + " can't find a seat and storms out! \n")
-            sleep(random.randrange(18, 24) / 1.05)
 
 
-def buildObjects(barber):
-    peopleList = []
-    names = ["Abby", "Kelli", "Billy", "Jacob",
-             "Poppy", "Brandon", "Sitka", "Sissy"]
+class agent(Person):
+	def __init__(self, name, role):
+		Person.__init__(self, name, role)
 
-    peopleList.append(barber)
-    for i in range(0, 8):
-        p = Customer(names[i], "Customer", barber)
-        peopleList.append(p)
-    return peopleList
+	def giveOut(self, ingredient1, ingredient2):
+		pass
+
+	def agentStart(self):
+		print("AGENT waiting..")
 
 
-if __name__ == "__main__":
-    try:
-        chairs = sys.argv[1]
-    except IndexError:
-        print("Please put in a number for chairs")
-        sys.exit(0)
+def buildPeople():
+	l = []
+	l.append(agent("Craig", "agent"))
+	l.append(smoker("Bob", "paper", "smoker"))
+	l.append(smoker("Tom", "tobacco", "smoker"))
+	l.append(smoker("John", "matches", "smoker"))
+	return l
 
-    BaseManager.register('Barber', Barber)
-    manager = BaseManager()
-    manager.start()
-    # put the Barber class into a manager to be shared
-    theBarber = manager.Barber("Bob", "Barber")
-    people = buildObjects(theBarber)
-    sharedDict['chairs'] = int(chairs)
-    print("Chairs used " + str(chairs))
-    sharedDict['inLine'] = 0
-    for i in people:
-        if i.getRole() == "Customer":
-            a = Process(target=i.custStart, args=())
+
+if (__name__ == "__main__"):
+    workersList = buildPeople()
+    for i in workersList:
+        if i.role == "agent":
+            a = Process(target=i.agentStart, args=())
         else:
-            a = Process(target=i.barberStart, args=())
+            a = Process(target=i.smokerStart, args=())
         sleep(1)
         a.start()
     a.join()
+
+
+
+
+

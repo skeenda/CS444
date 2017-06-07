@@ -4,59 +4,93 @@ import random
 from time import sleep
 
 man = man()
-sharedDict = man.dict()
-listONames = ["Abby", "Poppy", "Brandon", "Kelli", "Billy", "Jacob"]
-dictLock, printLock = man.Lock(), man.Lock()
+printLock = man.Lock()
+tableLock = man.Lock()
+onTable = man.list()
 
 
-def safePrint(toPrint):
-    printLock.acquire()
-    print(toPrint)
-    printLock.release()
+class Person(object):
+	def __init__(self, name, role):
+		self.name = name
+		self.role = role
+		self.products = ["tobacco", "paper", "matches"]
+		print('Hi my name is ' + name)
+
+	def safeprint(self, toPrint):
+		printLock.acquire()
+		print(toPrint)
+		printLock.release()
 
 
-def resetDict():
-    sharedDict['name'], sharedDict['count'], sharedDict['free'] = [], 0, True
+class smoker(Person):
+	def __init__(self, name, has, role):
+		Person.__init__(self, name, role)
+		self.has = has
+		self.needs = self.getNeeds(self.has)
+		self.safeprint("I need" + str(self.needs))
+
+	def getNeeds(self, has):
+		needs = []
+		for i in self.products:
+			if (str(has) != str(i)):
+				needs.append(i)
+		return needs
+
+	def checkTable(self):
+		global onTable
+		tableLock.acquire()
+		if self.needs == onTable:
+			self.safeprint(self.name + " found what he needs to make a cigarette and says 'ah that's good!'")
+			onTable = []
+		else:
+			self.safeprint(self.name + " says 'there is no god damn cigarettes!'")
+		tableLock.release()
+
+	def smokerStart(self):
+		self.safeprint("SMOKER waiting")
+		while (True):
+			sleep(2)
+			self.safeprint(self.name + " needs to smoke")
+			self.checkTable()
 
 
-def f(name):
-    while True:
-        if (sharedDict['count'] < 3 and sharedDict['free'] == True):
-            sharedDict['count'] += 1
-            safePrint(name + " got access!")
-            if (sharedDict['count'] == 3):
-                sharedDict['free'] = False
-                safePrint("-------WE HAVE HIT 3 PEOPLE---------")
-            tmp = sharedDict['name']
-            tmp.append(name)
-            sharedDict['name'] = tmp
-            safePrint(sharedDict._getvalue()['name'])
-            sleep(5)
-            tmp = sharedDict['name']
-            tmp.remove(name)
-            sharedDict['name'] = tmp
-            sharedDict['count'] = sharedDict['count'] - 1
-            safePrint(name + " DONE!!")
-            if (sharedDict['count'] == 0):
-                resetDict()
-                safePrint(
-                    name + " was last one out! Now it's free again!" + "\n")
-            safePrint(sharedDict._getvalue())
-            sleep(random.randrange(5, 10))
-        else:
-            safePrint(
-                name + " says 'Oh nose, I been blocked, I guess I will sleep!'")
-            safePrint(name + " says 'These people are hogging it all'")
-            safePrint(sharedDict._getvalue())
+class agent(Person):
+	def __init__(self, name, role):
+		Person.__init__(self, name, role)
 
-            print("\n")
-        sleep(random.randrange(5, 15) / 1.25)
+	def giveOut(self):
+		for n in random.sample(range(0, 3), 2):
+			onTable.append(self.products[int(n)])
+		self.safeprint(str(onTable))
+
+	def agentStart(self):
+		self.safeprint("AGENT started..")
+		while (True):
+			sleep(2)
+			self.safeprint("Craig is about to give out some ingredients")
+			self.giveOut()
+			self.safeprint("Craig put ingredients on the table!")
+			sleep(2)
 
 
-if __name__ == "__main__":
-    resetDict()
-    for i in range(0, 6):
-        p = Process(target=f, args=(listONames[i],))
-        sleep(1)
-        p.start()
-    p.join()
+def buildPeople():
+	l = []
+	l.append(agent("Craig", "agent"))
+	l.append(smoker("Bob", "paper", "smoker"))
+	l.append(smoker("Tom", "tobacco", "smoker"))
+	l.append(smoker("John", "matches", "smoker"))
+	return l
+
+
+if (__name__ == "__main__"):
+	workersList = buildPeople()
+	for i in workersList:
+		if i.role == "agent":
+			a = Process(target=i.agentStart, args=())
+		else:
+			a = Process(target=i.smokerStart, args=())
+		sleep(1)
+		a.start()
+	a.join()
+
+
