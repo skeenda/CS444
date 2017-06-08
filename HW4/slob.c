@@ -277,16 +277,45 @@ static void *slob_page_alloc(struct page *sp, size_t size, int align)
    } 
 }
 
+
+static int slob_page_alloc_helper(struct page *sp, size_t size, int align)
+{
+	slob_t *prev, *cur, *aligned, *best_cur = NULL, *best_prev = NULL, *best_aligned = NULL;
+	int delta = 0, best_delta = 0, units = SLOB_UNITS(size);
+    slobidx_t best_fit = NULL;
+
+
+	for (prev = NULL, cur = sp->freelist; ; prev = cur, cur = slob_next(cur)) {
+		slobidx_t avail = slob_units(cur);
+
+		if (align) {
+			aligned = (slob_t *)ALIGN((unsigned long)cur, align);
+			delta = aligned - cur;
+		}
+
+        if (avail >= units + delta && (best_fit == NULL || avail < best_fit + units + delta))
+        {
+            best_cur = cur;
+            best_fit = avail - units - delta;
+            if(best_fit == 0)   return 0;
+        }
+        if(slob_last(cur))  break;
+    }
+    if(best_cur)   return best_fit;
+    else    return -1;
+}
+	
 /*
  * slob_alloc: entry point into the slob allocator.
  */
 static void *slob_alloc(size_t size, gfp_t gfp, int align, int node)
 {
-	struct page *sp;
+	struct page *sp, *best_sp = NULL;
 	struct list_head *prev;
 	struct list_head *slob_list;
 	slob_t *b = NULL;
 	unsigned long flags;
+    int best_fit = -1, tmp_fit = -1;
 
 	if (size < SLOB_BREAK1)
 		slob_list = &free_slob_small;
@@ -309,21 +338,29 @@ static void *slob_alloc(size_t size, gfp_t gfp, int align, int node)
 		/* Enough room on this page? */
 		if (sp->units < SLOB_UNITS(size))
 			continue;
+        tmp_fit = slob_page_alloc_helper(sp, size, align);
+        if(tmp_fit >= 0 && (best_fit == -1 || tmp_fit < best_fit)){
+            best_sp = sp;
+            best_fit = tmp_fit;
+            continue;
+        }
+    }
 
-		/* Attempt to alloc */
-		prev = sp->list.prev;
-		b = slob_page_alloc(sp, size, align);
-		if (!b)
-			continue;
+    /* Attempt to alloc */
+    //prev = sp->list.prev;
+    if(best_fit >= 0)
+        b = slob_page_alloc(best_sp, size, align);
+        //if (!b)
+		//	continue;
 
 		/* Improve fragment distribution and reduce our average
 		 * search time by starting our next search here. (see
 		 * Knuth vol 1, sec 2.5, pg 449) */
-		if (prev != slob_list->prev &&
+		/*if (prev != slob_list->prev &&
 				slob_list->next != prev->next)
 			list_move_tail(slob_list, prev->next);
 		break;
-	}
+        */
 	spin_unlock_irqrestore(&slob_lock, flags);
 
 	/* Not enough space: must allocate a new page */
