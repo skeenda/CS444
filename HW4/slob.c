@@ -321,9 +321,10 @@ static void *slob_alloc(size_t size, gfp_t gfp, int align, int node)
 	struct page *sp, *best_sp = NULL;
 	struct list_head *prev;
 	struct list_head *slob_list;
+	struct list_head *temp;
 	slob_t *b = NULL;
 	unsigned long flags;
-    int best_fit = -1, tmp_fit = -1;
+        int best_fit = -1, tmp_fit = -1;
 
 	if (size < SLOB_BREAK1)
 		slob_list = &free_slob_small;
@@ -331,7 +332,6 @@ static void *slob_alloc(size_t size, gfp_t gfp, int align, int node)
 		slob_list = &free_slob_medium;
 	else
 		slob_list = &free_slob_large;
-	total_mem_used += SLOB_UNITS(size);
 	spin_lock_irqsave(&slob_lock, flags);
 	/* Iterate through each partially free page, try to find room */
 	list_for_each_entry(sp, slob_list, list) {
@@ -346,21 +346,58 @@ static void *slob_alloc(size_t size, gfp_t gfp, int align, int node)
 		/* Enough room on this page? */
 		if (sp->units < SLOB_UNITS(size))
 			continue;
+		
+		/* UNCOMMENT FOR FIRST FIT 
+		prev = sp->list.prev;
+		b = slob_page_alloc(sp, size, align);
+		if (!b)
+		    continue;
+		*/
+
+
+	///* UNCOMMENT FOR BEST FIT
         tmp_fit = slob_page_alloc_helper(sp, size, align);
         if(tmp_fit >= 0 && (best_fit == -1 || tmp_fit < best_fit)){
             best_sp = sp;
             best_fit = tmp_fit;
             continue;
         }
+	//*/
+	/* UNCOMMENT FOR FIRST FIT 
+	    // Improve fragment distribution and reduce our average
+	    // search time by starting our next search here. (see
+	    //  Knuth vol 1, sec 2.5, pg 449) 
+	    if (prev != slob_list->prev &&
+		    slob_list->next != prev->next)
+	        list_move_tail(slob_list, prev->next);
+    	     break;
+	*/
     }
 
     /* Attempt to alloc */
-    //prev = sp->list.prev;
+    // /*UNCOMMENT FOR BEST FIT
     if(best_fit >= 0)
         b = slob_page_alloc(best_sp, size, align); // alloc space on page
-	spin_unlock_irqrestore(&slob_lock, flags);
+    //*/
+     // Find free space by looping through linked lists
+    temp = &free_slob_small;
+    list_for_each_entry(sp, temp, list) {
+	   total_mem_used += sp->units;
+    }
+    temp = &free_slob_medium;
+    list_for_each_entry(sp, temp, list) {
+	   total_mem_used += sp->units;
+    }
+    temp = &free_slob_large;
+    list_for_each_entry(sp, temp, list) {
+	total_mem_used += sp->units;
+    }
 
-	/* Not enough space: must allocate a new page */
+
+
+    spin_unlock_irqrestore(&slob_lock, flags);
+
+    /* Not enough space: must allocate a new page */
     if (!b) {
 	    b = slob_new_pages(gfp & ~__GFP_ZERO, 0, node);
     	if (!b)
@@ -401,7 +438,7 @@ static void slob_free(void *block, int size)
 
 	sp = virt_to_page(block);
 	units = SLOB_UNITS(size);
-	total_mem_used -= SLOB_UNITS(size);
+	//total_mem_used -= SLOB_UNITS(size);
 	spin_lock_irqsave(&slob_lock, flags);
 
 	if (sp->units + units == SLOB_UNITS(PAGE_SIZE)) {
