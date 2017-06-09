@@ -69,10 +69,13 @@
 #include <linux/kmemleak.h>
 
 #include <trace/events/kmem.h>
-
 #include <linux/atomic.h>
-
 #include "slab.h"
+
+#include <linux/syscalls.h>
+#include <linux/linkage.h>
+
+
 /*
  * slob_block has a field 'units', which indicates size of block if +ve,
  * or offset of next block if -ve (in SLOB_UNITs).
@@ -100,6 +103,11 @@ typedef struct slob_block slob_t;
 static LIST_HEAD(free_slob_small);
 static LIST_HEAD(free_slob_medium);
 static LIST_HEAD(free_slob_large);
+
+static unsigned long page_counter = 0; 
+static unsigned long total_mem_used = 0;
+
+
 
 /*
  * slob_page_free: true for pages on free_slob_pages list.
@@ -323,7 +331,7 @@ static void *slob_alloc(size_t size, gfp_t gfp, int align, int node)
 		slob_list = &free_slob_medium;
 	else
 		slob_list = &free_slob_large;
-
+	total_mem_used += SLOB_UNITS(size);
 	spin_lock_irqsave(&slob_lock, flags);
 	/* Iterate through each partially free page, try to find room */
 	list_for_each_entry(sp, slob_list, list) {
@@ -349,39 +357,29 @@ static void *slob_alloc(size_t size, gfp_t gfp, int align, int node)
     /* Attempt to alloc */
     //prev = sp->list.prev;
     if(best_fit >= 0)
-        b = slob_page_alloc(best_sp, size, align);
-        //if (!b)
-		//	continue;
-
-		/* Improve fragment distribution and reduce our average
-		 * search time by starting our next search here. (see
-		 * Knuth vol 1, sec 2.5, pg 449) */
-		/*if (prev != slob_list->prev &&
-				slob_list->next != prev->next)
-			list_move_tail(slob_list, prev->next);
-		break;
-        */
+        b = slob_page_alloc(best_sp, size, align); // alloc space on page
 	spin_unlock_irqrestore(&slob_lock, flags);
 
 	/* Not enough space: must allocate a new page */
-	if (!b) {
-		b = slob_new_pages(gfp & ~__GFP_ZERO, 0, node);
-		if (!b)
-			return NULL;
-		sp = virt_to_page(b);
-		__SetPageSlab(sp);
+    if (!b) {
+	    b = slob_new_pages(gfp & ~__GFP_ZERO, 0, node);
+    	if (!b)
+    		return NULL;
+    	sp = virt_to_page(b);
+    	__SetPageSlab(sp);
 
-		spin_lock_irqsave(&slob_lock, flags);
-		sp->units = SLOB_UNITS(PAGE_SIZE);
-		sp->freelist = b;
-		INIT_LIST_HEAD(&sp->list);
-		set_slob(b, SLOB_UNITS(PAGE_SIZE), b + SLOB_UNITS(PAGE_SIZE));
-		set_slob_page_free(sp, slob_list);
-		b = slob_page_alloc(sp, size, align);
-		BUG_ON(!b);
-		spin_unlock_irqrestore(&slob_lock, flags);
-	}
-	if (unlikely((gfp & __GFP_ZERO) && b))
+    	spin_lock_irqsave(&slob_lock, flags);
+    	sp->units = SLOB_UNITS(PAGE_SIZE);
+    	sp->freelist = b;
+    	INIT_LIST_HEAD(&sp->list);
+    	set_slob(b, SLOB_UNITS(PAGE_SIZE), b + SLOB_UNITS(PAGE_SIZE));
+    	set_slob_page_free(sp, slob_list);
+    	b = slob_page_alloc(sp, size, align);
+    	BUG_ON(!b);
+    	spin_unlock_irqrestore(&slob_lock, flags);
+    	page_counter += 1;
+    }
+	if (unlikely((gfp & __GFP_ZERO) && b)) // if there is a failure in creating the page clear it. 
 		memset(b, 0, size);
 	return b;
 }
@@ -403,7 +401,7 @@ static void slob_free(void *block, int size)
 
 	sp = virt_to_page(block);
 	units = SLOB_UNITS(size);
-
+	total_mem_used -= SLOB_UNITS(size);
 	spin_lock_irqsave(&slob_lock, flags);
 
 	if (sp->units + units == SLOB_UNITS(PAGE_SIZE)) {
@@ -431,6 +429,7 @@ static void slob_free(void *block, int size)
 		else
 			slob_list = &free_slob_large;
 		set_slob_page_free(sp, slob_list);
+		page_counter -= 1;
 		goto out;
 	}
 
@@ -695,3 +694,13 @@ void __init kmem_cache_init_late(void)
 {
 	slab_state = FULL;
 }
+
+asmlinkage long sys_slob_used(void){
+   return (long) SLOB_UNITS(PAGE_SIZE) * page_counter;
+}
+
+
+asmlinkage long sys_bytes_used(void){
+    return total_mem_used;
+}
+
